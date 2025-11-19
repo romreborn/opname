@@ -55,14 +55,32 @@ export default function Input() {
   }, [searchQuery, assets])
 
   const fetchAssets = async () => {
-    const { data, error } = await supabase.from('assets').select('*')
-    if (error) console.error(error)
-    else {
-      setAssets(data || [])
-      setFilteredAssets(data || [])
-      // Simulate some assets already submitted (for demo)
-      setSubmittedAssets(new Set(['1', '3'])) // Assets with IDs 1 and 3 are already submitted
+    const { data: assetsData, error: assetsError } = await supabase
+      .from('assets')
+      .select('*')
+      .order('name')
+
+    if (assetsError) {
+      console.error('Error fetching assets:', assetsError)
+      return
     }
+
+    // Fetch existing opname records to determine which assets are already opnamed
+    const { data: opnameData, error: opnameError } = await supabase
+      .from('opname_records')
+      .select('asset_id')
+
+    if (opnameError) {
+      console.error('Error fetching opname records:', opnameError)
+    }
+
+    const opnamedAssetIds = new Set(
+      (opnameData || []).map(record => record.asset_id)
+    )
+
+    setAssets(assetsData || [])
+    setFilteredAssets(assetsData || [])
+    setSubmittedAssets(opnamedAssetIds)
   }
 
   const handleAssetChange = (assetId: string) => {
@@ -78,6 +96,34 @@ export default function Input() {
     return assets
       .filter(asset => !submittedAssets.has(asset.id))
       .slice(0, 10)
+  }
+
+  // Currency formatting functions
+  const formatCurrency = (value: string) => {
+    if (!value || value === '') return ''
+
+    // Remove non-digit characters
+    const cleanValue = value.replace(/[^\d]/g, '')
+
+    // Convert to number and format
+    const number = parseFloat(cleanValue) || 0
+    return number.toLocaleString('id-ID')
+  }
+
+  const parseCurrency = (formattedValue: string) => {
+    if (!formattedValue || formattedValue === '') return ''
+
+    // Remove non-digit characters
+    return formattedValue.replace(/[^\d]/g, '')
+  }
+
+  const handleCurrencyChange = (fieldName: 'h_perolehan' | 'nilai_buku', value: string) => {
+    // Allow only digits and basic formatting
+    const cleanValue = value.replace(/[^\d]/g, '')
+    setFormData(prev => ({
+      ...prev,
+      [fieldName]: cleanValue
+    }))
   }
 
   const selectPendingAsset = (asset: Asset) => {
@@ -300,14 +346,21 @@ export default function Input() {
                   filteredAssets.map(asset => (
                     <div
                       key={asset.id}
-                      onClick={() => handleAssetChange(asset.id)}
-                      className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
+                      onClick={() => !submittedAssets.has(asset.id) && handleAssetChange(asset.id)}
+                      className={`p-4 border-b border-gray-100 transition-colors ${
+                        submittedAssets.has(asset.id)
+                          ? 'cursor-not-allowed opacity-60 bg-gray-50'
+                          : 'cursor-pointer hover:bg-gray-50'
+                      } ${
                         selectedAsset?.id === asset.id ? 'bg-blue-50 border-blue-200' : ''
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900">{asset.name}</div>
+                        <div className={`flex-1 ${submittedAssets.has(asset.id) ? 'text-gray-500' : ''}`}>
+                          <div className={`font-medium ${submittedAssets.has(asset.id) ? 'text-gray-500' : 'text-gray-900'}`}>
+                            {asset.name}
+                            {submittedAssets.has(asset.id) && ' (Sudah Diopname)'}
+                          </div>
                           <div className="text-sm text-gray-500">
                             {asset.no_asset && `No: ${asset.no_asset}`}
                             {asset.merk && ` • ${asset.merk}`}
@@ -480,25 +533,33 @@ export default function Input() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700">H. Perolehan</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={formData.h_perolehan}
-                        onChange={(e) => setFormData({...formData, h_perolehan: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">
+                          Rp
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="0"
+                          value={formData.h_perolehan ? formatCurrency(formData.h_perolehan) : ''}
+                          onChange={(e) => handleCurrencyChange('h_perolehan', e.target.value)}
+                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Nilai Buku</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={formData.nilai_buku}
-                        onChange={(e) => setFormData({...formData, nilai_buku: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">
+                          Rp
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="0"
+                          value={formData.nilai_buku ? formatCurrency(formData.nilai_buku) : ''}
+                          onChange={(e) => handleCurrencyChange('nilai_buku', e.target.value)}
+                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
