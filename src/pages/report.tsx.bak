@@ -1,0 +1,348 @@
+import React, { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabaseClient'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  FileText,
+  ArrowLeft,
+  Printer,
+  Package,
+  CheckCircle,
+  AlertCircle,
+  Eye,
+  Image as ImageIcon,
+  Plus,
+  TrendingUp,
+  DollarSign
+} from 'lucide-react'
+
+interface Asset {
+  id: string
+  name: string
+  merk: string | null
+  tahun: number | null
+  no_asset: string | null
+  pemakai: string | null
+  site: string | null
+  lokasi: string | null
+}
+
+interface OpnameRecord {
+  id: string
+  asset_id: string
+  keterangan_ada: boolean
+  keterangan_tidak_ada: boolean
+  status_bagus: boolean
+  status_rusak: boolean
+  h_perolehan: number | null
+  nilai_buku: number | null
+  image_url: string | null
+  created_at: string
+  assets: Asset
+}
+
+export default function Report() {
+  const [records, setRecords] = useState<OpnameRecord[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchRecords()
+  }, [])
+
+  const fetchRecords = async () => {
+    const { data, error } = await supabase
+      .from('opname_records')
+      .select(`
+        *,
+        assets (
+          id,
+          name,
+          merk,
+          tahun,
+          no_asset,
+          pemakai,
+          site,
+          lokasi
+        )
+      `)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching records:', error)
+    } else {
+      setRecords(data || [])
+    }
+    setLoading(false)
+  }
+
+  const handlePrint = () => {
+    window.print()
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-xl font-semibold">Loading...</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto py-8 px-4 max-w-7xl">
+        {/* Header */}
+        <Card className="mb-8 no-print">
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
+                  <FileText className="w-6 h-6 text-primary-foreground" />
+                </div>
+                <div>
+                  <CardTitle className="text-2xl font-bold">Laporan Opname</CardTitle>
+                  <CardDescription>
+                    Daftar seluruh data opname asset yang telah dicatat
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex space-x-3">
+                <Button asChild variant="outline" size="sm">
+                  <a href="/">
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Kembali
+                  </a>
+                </Button>
+                <Button onClick={handlePrint} size="sm">
+                  <Printer className="w-4 h-4 mr-2" />
+                  Cetak
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+
+        {/* Statistics Cards */}
+        {records.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Total Asset</p>
+                    <p className="text-2xl font-bold">{records.length}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <Package className="w-6 h-6 text-blue-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Asset Ada</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      {records.filter(r => r.keterangan_ada).length}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                    <CheckCircle className="w-6 h-6 text-green-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Asset Bagus</p>
+                    <p className="text-2xl font-bold text-blue-600">
+                      {records.filter(r => r.status_bagus).length}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <TrendingUp className="w-6 h-6 text-blue-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Total Nilai</p>
+                    <p className="text-xl font-bold text-purple-600">
+                      Rp {records.reduce((sum, r) => sum + (r.h_perolehan || 0), 0).toLocaleString('id-ID')}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                    <DollarSign className="w-6 h-6 text-purple-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {records.length === 0 ? (
+          <Card className="text-center py-12">
+            <CardContent>
+              <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-10 h-10 text-muted-foreground" />
+              </div>
+              <CardTitle className="text-xl mb-2">Belum ada data opname</CardTitle>
+              <CardDescription className="mb-6">
+                Mulai input data opname untuk melihat laporan di sini
+              </CardDescription>
+              <Button asChild>
+                <a href="/">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Mulai Input Data
+                </a>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          /* Data Table */
+          <Card>
+            <CardHeader>
+              <CardTitle>Detail Opname Asset</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead rowSpan={2} className="text-center">No</TableHead>
+                      <TableHead rowSpan={2}>Nama Asset</TableHead>
+                      <TableHead rowSpan={2}>Merk</TableHead>
+                      <TableHead rowSpan={2}>Tahun</TableHead>
+                      <TableHead rowSpan={2}>No. Asset</TableHead>
+                      <TableHead rowSpan={2}>Pemakai</TableHead>
+                      <TableHead rowSpan={2}>Site</TableHead>
+                      <TableHead rowSpan={2}>Lokasi</TableHead>
+                      <TableHead colSpan={2} className="text-center">KETERANGAN</TableHead>
+                      <TableHead colSpan={2} className="text-center">STATUS</TableHead>
+                      <TableHead rowSpan={2} className="text-right">H. Perolehan</TableHead>
+                      <TableHead rowSpan={2} className="text-right">Nilai Buku</TableHead>
+                      <TableHead rowSpan={2} className="text-center">Gambar</TableHead>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead className="text-center text-green-600">ADA</TableHead>
+                      <TableHead className="text-center text-red-600">TIDAK ADA</TableHead>
+                      <TableHead className="text-center text-green-600">BAGUS</TableHead>
+                      <TableHead className="text-center text-orange-600">RUSAK</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {records.map((r, idx) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="text-center font-medium">{idx + 1}</TableCell>
+                        <TableCell className="font-medium">
+                          {r.assets?.name || '-'}
+                        </TableCell>
+                        <TableCell>{r.assets?.merk || '-'}</TableCell>
+                        <TableCell>{r.assets?.tahun || '-'}</TableCell>
+                        <TableCell>{r.assets?.no_asset || '-'}</TableCell>
+                        <TableCell>{r.assets?.pemakai || '-'}</TableCell>
+                        <TableCell>{r.assets?.site || '-'}</TableCell>
+                        <TableCell>{r.assets?.lokasi || '-'}</TableCell>
+                        <TableCell className="text-center">
+                          {r.keterangan_ada && (
+                            <Badge variant="success" className="bg-green-100 text-green-800">
+                              ✓ ADA
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {r.keterangan_tidak_ada && (
+                            <Badge variant="destructive" className="bg-red-100 text-red-800">
+                              ✓ TIDAK ADA
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {r.status_bagus && (
+                            <Badge variant="success" className="bg-green-100 text-green-800">
+                              ✓ BAGUS
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {r.status_rusak && (
+                            <Badge variant="warning" className="bg-orange-100 text-orange-800">
+                              ✓ RUSAK
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {r.h_perolehan ? `Rp ${Number(r.h_perolehan).toLocaleString('id-ID')}` : '-'}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {r.nilai_buku ? `Rp ${Number(r.nilai_buku).toLocaleString('id-ID')}` : '-'}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {r.image_url ? (
+                            <div className="relative group inline-block">
+                              <img
+                                src={r.image_url}
+                                alt="Asset"
+                                className="w-16 h-16 object-cover rounded-lg border cursor-pointer hover:border-primary transition-colors"
+                                onClick={() => r.image_url && window.open(r.image_url, '_blank')}
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/70 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                                <Eye className="w-6 h-6 text-white" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-16 h-16 bg-muted rounded-lg border-2 border-dashed border-muted-foreground/20 flex items-center justify-center">
+                              <ImageIcon className="w-8 h-8 text-muted-foreground/40" />
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell colSpan={11} className="text-right font-bold">
+                        TOTAL:
+                      </TableCell>
+                      <TableCell className="text-right font-bold">
+                        Rp {records.reduce((sum, r) => sum + (r.h_perolehan || 0), 0).toLocaleString('id-ID')}
+                      </TableCell>
+                      <TableCell className="text-right font-bold">
+                        Rp {records.reduce((sum, r) => sum + (r.nilai_buku || 0), 0).toLocaleString('id-ID')}
+                      </TableCell>
+                      <TableCell></TableCell>
+                    </TableRow>
+                  </TableFooter>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Footer */}
+        <div className="mt-6 text-center text-sm text-muted-foreground no-print">
+          <p>Menampilkan {records.length} data opname</p>
+          <p className="mt-1">
+            Generated on {new Date().toLocaleDateString('id-ID', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}

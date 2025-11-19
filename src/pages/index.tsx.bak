@@ -1,0 +1,432 @@
+import React, { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabaseClient'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Upload, FileText, CheckCircle, AlertCircle, Package, Search, DollarSign, Image as ImageIcon } from 'lucide-react'
+
+interface Asset {
+  id: string
+  name: string
+  merk: string | null
+  tahun: number | null
+  no_asset: string | null
+  pemakai: string | null
+  site: string | null
+  lokasi: string | null
+}
+
+export default function Home() {
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null)
+  const [formData, setFormData] = useState({
+    keterangan_ada: false,
+    keterangan_tidak_ada: false,
+    status_bagus: false,
+    status_rusak: false,
+    h_perolehan: '',
+    nilai_buku: '',
+    image_url: ''
+  })
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [submitSuccess, setSubmitSuccess] = useState(false)
+
+  useEffect(() => {
+    fetchAssets()
+  }, [])
+
+  const fetchAssets = async () => {
+    const { data, error } = await supabase.from('assets').select('*')
+    if (error) console.error(error)
+    else setAssets(data || [])
+  }
+
+  const handleAssetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const assetId = e.target.value
+    const asset = assets.find(a => a.id === assetId)
+    setSelectedAsset(asset || null)
+    // Auto-fill form fields
+    if (asset) {
+      setFormData(prev => ({
+        ...prev,
+        h_perolehan: '',
+        nilai_buku: ''
+      }))
+    }
+  }
+
+  const handleImageUpload = async (file: File): Promise<string | null> => {
+    if (!file) return null
+    const fileName = `${Date.now()}_${file.name}`
+    const { data, error } = await supabase.storage
+      .from('opname-images')
+      .upload(fileName, file)
+
+    if (error) {
+      alert('Upload failed')
+      return null
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('opname-images')
+      .getPublicUrl(fileName)
+
+    return urlData.publicUrl
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!selectedAsset) {
+      alert('Silakan pilih asset terlebih dahulu')
+      return
+    }
+
+    setLoading(true)
+
+    let imageUrl = formData.image_url
+    if (imageFile) {
+      const uploadedUrl = await handleImageUpload(imageFile)
+      if (!uploadedUrl) {
+        setLoading(false)
+        return
+      }
+      imageUrl = uploadedUrl
+    }
+
+    const { error } = await supabase.from('opname_records').insert({
+      asset_id: selectedAsset.id,
+      keterangan_ada: formData.keterangan_ada,
+      keterangan_tidak_ada: formData.keterangan_tidak_ada,
+      status_bagus: formData.status_bagus,
+      status_rusak: formData.status_rusak,
+      h_perolehan: parseFloat(formData.h_perolehan) || null,
+      nilai_buku: parseFloat(formData.nilai_buku) || null,
+      image_url: imageUrl
+    })
+
+    if (error) {
+      alert('Save failed: ' + error.message)
+    } else {
+      setSubmitSuccess(true)
+      setTimeout(() => setSubmitSuccess(false), 3000)
+      // Reset form
+      setSelectedAsset(null)
+      setImageFile(null)
+      setFormData({
+        keterangan_ada: false,
+        keterangan_tidak_ada: false,
+        status_bagus: false,
+        status_rusak: false,
+        h_perolehan: '',
+        nilai_buku: '',
+        image_url: ''
+      })
+    }
+
+    setLoading(false)
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50/30">
+      <div className="container mx-auto py-8 px-4 max-w-4xl">
+        {/* Header */}
+        <div className="flex items-center justify-center mb-8">
+          <Card className="w-full">
+            <CardHeader className="text-center pb-4">
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center">
+                  <FileText className="w-8 h-8 text-primary-foreground" />
+                </div>
+              </div>
+              <CardTitle className="text-2xl font-bold">Form Input Opname</CardTitle>
+              <CardDescription>
+                Pilih asset dan lengkapi data opname untuk pencatatan inventaris
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+
+        {/* Success Message */}
+        {submitSuccess && (
+          <Card className="mb-6 border-green-200 bg-green-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center text-green-700">
+                <CheckCircle className="w-5 h-5 mr-2" />
+                <span className="font-medium">Data berhasil disimpan!</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
+          <form onSubmit={handleSubmit} className="space-y-8">
+            <CardContent className="pt-8">
+              {/* Asset Selection */}
+              <div className="space-y-3">
+                <Label className="text-base font-semibold flex items-center">
+                  <Search className="w-4 h-4 mr-2" />
+                  Pilih Asset
+                </Label>
+                <Select
+                  value={selectedAsset?.id || ''}
+                  onValueChange={handleAssetChange}
+                  required
+                >
+                  <SelectTrigger className="h-12">
+                    <SelectValue placeholder="-- Pilih Asset --" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assets.map(asset => (
+                      <SelectItem key={asset.id} value={asset.id}>
+                        {asset.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedAsset && (
+                <>
+                  {/* Asset Details */}
+                  <div className="space-y-6 pt-6 border-t">
+                    <div className="space-y-3">
+                      <Label className="text-base font-semibold flex items-center">
+                        <Package className="w-4 h-4 mr-2" />
+                        Detail Asset
+                      </Label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Card>
+                          <CardContent className="pt-4">
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium text-muted-foreground">Merk</p>
+                              <p className="font-semibold">{selectedAsset.merk || '-'}</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                          <CardContent className="pt-4">
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium text-muted-foreground">Tahun</p>
+                              <p className="font-semibold">{selectedAsset.tahun || '-'}</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                          <CardContent className="pt-4">
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium text-muted-foreground">No. Asset</p>
+                              <p className="font-semibold">{selectedAsset.no_asset || '-'}</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                          <CardContent className="pt-4">
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium text-muted-foreground">Pemakai</p>
+                              <p className="font-semibold">{selectedAsset.pemakai || '-'}</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                          <CardContent className="pt-4">
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium text-muted-foreground">Site</p>
+                              <p className="font-semibold">{selectedAsset.site || '-'}</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                          <CardContent className="pt-4">
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium text-muted-foreground">Lokasi</p>
+                              <p className="font-semibold">{selectedAsset.lokasi || '-'}</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </div>
+
+                    {/* Status Options */}
+                    <div className="space-y-6 pt-6 border-t">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-lg">KETERANGAN</CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="flex items-center space-x-3 p-3 rounded-lg border">
+                              <Checkbox
+                                id="keterangan-ada"
+                                checked={formData.keterangan_ada}
+                                onCheckedChange={(checked) =>
+                                  setFormData({...formData, keterangan_ada: checked === true})
+                                }
+                              />
+                              <Label htmlFor="keterangan-ada" className="text-base font-medium cursor-pointer">
+                                ADA
+                              </Label>
+                            </div>
+                            <div className="flex items-center space-x-3 p-3 rounded-lg border">
+                              <Checkbox
+                                id="keterangan-tidak-ada"
+                                checked={formData.keterangan_tidak_ada}
+                                onCheckedChange={(checked) =>
+                                  setFormData({...formData, keterangan_tidak_ada: checked === true})
+                                }
+                              />
+                              <Label htmlFor="keterangan-tidak-ada" className="text-base font-medium cursor-pointer">
+                                TIDAK ADA
+                              </Label>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-lg">STATUS AKTIVA</CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="flex items-center space-x-3 p-3 rounded-lg border">
+                              <Checkbox
+                                id="status-bagus"
+                                checked={formData.status_bagus}
+                                onCheckedChange={(checked) =>
+                                  setFormData({...formData, status_bagus: checked === true})
+                                }
+                              />
+                              <Label htmlFor="status-bagus" className="text-base font-medium cursor-pointer">
+                                BAGUS
+                              </Label>
+                            </div>
+                            <div className="flex items-center space-x-3 p-3 rounded-lg border">
+                              <Checkbox
+                                id="status-rusak"
+                                checked={formData.status_rusak}
+                                onCheckedChange={(checked) =>
+                                  setFormData({...formData, status_rusak: checked === true})
+                                }
+                              />
+                              <Label htmlFor="status-rusak" className="text-base font-medium cursor-pointer">
+                                RUSAK
+                              </Label>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </div>
+
+                    {/* Financial Values */}
+                    <div className="space-y-6 pt-6 border-t">
+                      <div className="space-y-3">
+                        <Label className="text-base font-semibold flex items-center">
+                          <DollarSign className="w-4 h-4 mr-2" />
+                          Nilai Asset
+                        </Label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="h-perolehan">H. Perolehan</Label>
+                            <Input
+                              id="h-perolehan"
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={formData.h_perolehan}
+                              onChange={(e) => setFormData({...formData, h_perolehan: e.target.value})}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="nilai-buku">Nilai Buku</Label>
+                            <Input
+                              id="nilai-buku"
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={formData.nilai_buku}
+                              onChange={(e) => setFormData({...formData, nilai_buku: e.target.value})}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Image Upload */}
+                    <div className="space-y-6 pt-6 border-t">
+                      <div className="space-y-3">
+                        <Label className="text-base font-semibold flex items-center">
+                          <ImageIcon className="w-4 h-4 mr-2" />
+                          Upload Foto Asset
+                        </Label>
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                          <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                          <div className="space-y-2">
+                            <Label htmlFor="file-upload" className="cursor-pointer">
+                              <span className="text-base font-medium text-foreground">
+                                Klik untuk upload foto
+                              </span>
+                              <p className="text-sm text-muted-foreground">
+                                PNG, JPG, GIF hingga 10MB
+                              </p>
+                            </Label>
+                            <Input
+                              id="file-upload"
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+                              className="sr-only"
+                            />
+                          </div>
+                          {imageFile && (
+                            <div className="mt-4 p-3 bg-muted rounded-lg">
+                              <p className="text-sm font-medium">
+                                File selected: {imageFile.name}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Submit Button */}
+                    <div className="pt-6 border-t">
+                      <Button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full h-12 text-base font-semibold"
+                      >
+                        {loading ? (
+                          <>
+                            <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Menyimpan...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Simpan Data Opname
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </>
+                )}
+            </CardContent>
+          </form>
+        </Card>
+
+        {/* Report Link */}
+        <div className="mt-8 text-center">
+          <Button asChild variant="outline" size="lg">
+            <a href="/report" className="inline-flex items-center">
+              <FileText className="w-4 h-4 mr-2" />
+              Lihat Laporan Opname
+            </a>
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
