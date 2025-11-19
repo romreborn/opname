@@ -55,7 +55,7 @@ export default function Home() {
                 </svg>
               </div>
               <h2 className="text-2xl font-semibold text-gray-900 mb-2 text-center">
-                Upload Excel Database
+                Upload Excel
               </h2>
               <p className="text-gray-600 text-center">
                 Upload file Excel untuk mengisi data assets
