@@ -705,14 +705,14 @@ export default function Report() {
                 </tbody>
                 <tfoot>
                   <tr className="bg-gray-100 font-bold">
-                    <td colSpan={12} className="border border-gray-300 px-4 py-2 text-right">TOTAL:</td>
+                    <td colSpan={13} className="border border-gray-300 px-4 py-2 text-right">TOTAL:</td>
                     <td className="border border-gray-300 px-4 py-2 text-right">
-                      Rp {assets.filter(a => a.opname_records && a.opname_records.length > 0).reduce((sum, a) => sum + (a.opname_records![0]?.h_perolehan || 0), 0).toLocaleString('id-ID')}
+                      Rp {filteredAssets.filter(a => a.opname_records && a.opname_records.length > 0).reduce((sum, a) => sum + (a.opname_records![0]?.h_perolehan || 0), 0).toLocaleString('id-ID')}
                     </td>
                     <td className="border border-gray-300 px-4 py-2 text-right">
-                      Rp {assets.filter(a => a.opname_records && a.opname_records.length > 0).reduce((sum, a) => sum + (a.opname_records![0]?.nilai_buku || 0), 0).toLocaleString('id-ID')}
+                      Rp {filteredAssets.filter(a => a.opname_records && a.opname_records.length > 0).reduce((sum, a) => sum + (a.opname_records![0]?.nilai_buku || 0), 0).toLocaleString('id-ID')}
                     </td>
-                    <td className="border border-gray-300 px-4 py-2"></td>
+                    <td colSpan={1} className="border border-gray-300 px-4 py-2"></td>
                   </tr>
                 </tfoot>
               </table>
