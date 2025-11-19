@@ -245,7 +245,11 @@ export default function Input() {
         })
 
         // Add to submitted assets
-        setSubmittedAssets(prev => new Set([...prev, selectedAsset.id]))
+        setSubmittedAssets(prev => {
+          const newSet = new Set(prev)
+          newSet.add(selectedAsset.id)
+          return newSet
+        })
         // Reset form
         setSelectedAsset(null)
         setImageFile(null)

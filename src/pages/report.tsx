@@ -48,12 +48,20 @@ export default function Report() {
   // Get unique values for filter dropdowns
   const getUniqueValues = (field: keyof AssetWithOpname) => {
     const values = assets.map(asset => asset[field]).filter(Boolean)
-    return [...new Set(values)] as string[]
+    const uniqueSet = new Set() as Set<string>
+    values.forEach(value => {
+      if (value) uniqueSet.add(String(value))
+    })
+    return Array.from(uniqueSet) as string[]
   }
 
   const getUniqueTahun = () => {
-    const values = assets.map(asset => asset.tahun).filter(Boolean)
-    return [...new Set(values)].sort((a, b) => (b || 0) - (a || 0)) as number[]
+    const values = assets.map(asset => asset.tahun).filter(Boolean) as number[]
+    const uniqueSet = new Set() as Set<number>
+    values.forEach(value => {
+      if (value !== undefined && value !== null) uniqueSet.add(value)
+    })
+    return Array.from(uniqueSet).sort((a, b) => b - a) as number[]
   }
 
   useEffect(() => {
