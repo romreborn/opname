@@ -27,11 +27,105 @@ interface AssetWithOpname {
   }[] | null
 }
 
+// Utility function to get optimized image URL with compression
+const getOptimizedImageUrl = (imageUrl: string, width: number = 80, quality: number = 70): string => {
+  if (!imageUrl) return imageUrl
+
+  try {
+    // If using Supabase storage, we can add image transformations
+    if (imageUrl.includes('supabase.co/storage/v1')) {
+      // Supabase image transformation syntax
+      const transformationUrl = `${imageUrl}?width=${width}&quality=${quality}`
+      return transformationUrl
+    }
+
+    // For other sources, return as-is
+    return imageUrl
+  } catch (error) {
+    console.warn('Error optimizing image URL:', error)
+    return imageUrl
+  }
+}
+
+// Simple Image Component with error handling
+interface OptimizedImageProps {
+  imageUrl: string
+  originalUrl: string
+  assetName: string
+}
+
+const OptimizedImage: React.FC<OptimizedImageProps> = ({ imageUrl, originalUrl, assetName }) => {
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [hasError, setHasError] = useState(false)
+
+  const handleClick = () => {
+    // Open original full-size image in new tab
+    window.open(originalUrl, '_blank')
+  }
+
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    console.warn('Image failed to load:', imageUrl)
+    setHasError(true)
+  }
+
+  const handleImageLoad = () => {
+    setIsLoaded(true)
+  }
+
+  if (hasError) {
+    return (
+      <div
+        className="w-12 h-12 bg-red-50 rounded border border-red-200 flex items-center justify-center cursor-pointer hover:bg-red-100 transition-colors"
+        onClick={handleClick}
+        title={`Error loading image for ${assetName}. Click to try opening original.`}
+      >
+        <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z" />
+        </svg>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative inline-block group">
+      {/* Loading placeholder */}
+      {!isLoaded && (
+        <div className="w-12 h-12 bg-gray-100 rounded border border-gray-300 flex items-center justify-center">
+          <div className="w-4 h-4 bg-gray-300 rounded-full"></div>
+        </div>
+      )}
+
+      {/* Main image - using original URL for now to avoid transformation issues */}
+      <img
+        src={imageUrl} // Using original URL temporarily
+        alt={`${assetName} thumbnail`}
+        className={`w-12 h-12 object-cover rounded border border-gray-300 cursor-pointer transition-all duration-300 hover:border-blue-500 hover:shadow-md ${
+          isLoaded ? 'opacity-100' : 'opacity-0 absolute'
+        }`}
+        onClick={handleClick}
+        onError={handleImageError}
+        onLoad={handleImageLoad}
+        loading="lazy"
+      />
+
+      {/* Hover overlay with view icon */}
+      <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-60 rounded opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none">
+        <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        </svg>
+      </div>
+    </div>
+  )
+}
+
 export default function Report() {
   const [assets, setAssets] = useState<AssetWithOpname[]>([])
   const [filteredAssets, setFilteredAssets] = useState<AssetWithOpname[]>([])
   const [loading, setLoading] = useState(true)
   const [showReport, setShowReport] = useState(false)
+  const [showImages, setShowImages] = useState(true) // Toggle for showing/hiding images for performance
+  const [imageLoadErrors, setImageLoadErrors] = useState<Set<string>>(new Set())
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -343,7 +437,7 @@ export default function Report() {
               <h1 className="text-3xl font-bold text-gray-900">Laporan Opname</h1>
               <p className="text-gray-600 mt-2">Filter dan tampilkan laporan asset opname</p>
             </div>
-            <div className="flex space-x-3">
+            <div className="flex flex-wrap gap-3">
               <Link href="/input">
                 <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md flex items-center">
                   <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -370,6 +464,28 @@ export default function Report() {
                 </svg>
                 Export Excel
               </button>
+
+              {/* Image toggle button */}
+              {showReport && (
+                <button
+                  onClick={() => setShowImages(!showImages)}
+                  className={`font-medium py-2 px-4 rounded-md flex items-center ${
+                    showImages
+                      ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                      : 'bg-gray-600 hover:bg-gray-700 text-white'
+                  }`}
+                  title={showImages ? "Hide images for better performance" : "Show images"}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    {showImages ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    )}
+                  </svg>
+                  {showImages ? 'Hide Images' : 'Show Images'}
+                </button>
+              )}
             </div>
           </div>
 
@@ -526,7 +642,7 @@ export default function Report() {
 
           {/* Statistics Cards - Only show when report is displayed */}
           {showReport && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -588,6 +704,27 @@ export default function Report() {
                 <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
                   <svg className="w-6 h-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-indigo-800">Asset dengan Foto</p>
+                  <p className="text-2xl font-bold text-indigo-600">
+                    {filteredAssets.filter(a => a.opname_records && a.opname_records[0]?.image_url).length}
+                  </p>
+                  <p className="text-xs text-indigo-600">
+                    {filteredAssets.filter(a => a.opname_records && a.opname_records.length > 0).length > 0
+                      ? Math.round((filteredAssets.filter(a => a.opname_records && a.opname_records[0]?.image_url).length / filteredAssets.filter(a => a.opname_records && a.opname_records.length > 0).length) * 100)
+                      : 0}% dari sudah diopname
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
               </div>
@@ -708,24 +845,22 @@ export default function Report() {
                         {asset.opname_records && asset.opname_records[0]?.nilai_buku ? `Rp ${Number(asset.opname_records[0].nilai_buku).toLocaleString('id-ID')}` : '-'}
                       </td>
                       <td className="border border-gray-300 px-4 py-2 text-center">
-                        {asset.opname_records && asset.opname_records[0]?.image_url ? (
-                          <div className="relative inline-block">
-                            <img
-                              src={asset.opname_records[0].image_url}
-                              alt="Asset"
-                              className="w-16 h-16 object-cover rounded border border-gray-300 cursor-pointer hover:border-blue-500 transition-colors"
-                              onClick={() => asset.opname_records && asset.opname_records[0]?.image_url && window.open(asset.opname_records[0].image_url, '_blank')}
-                            />
-                            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
-                              <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                              </svg>
-                            </div>
+                        {showImages && asset.opname_records && asset.opname_records[0]?.image_url ? (
+                          <OptimizedImage
+                            imageUrl={asset.opname_records[0].image_url}
+                            originalUrl={asset.opname_records[0].image_url}
+                            assetName={asset.name}
+                          />
+                        ) : asset.opname_records && asset.opname_records[0]?.image_url ? (
+                          // Show a simple image indicator when images are hidden
+                          <div className="w-12 h-12 bg-green-50 border border-green-200 rounded flex items-center justify-center" title={`${asset.name} - Has photo (click "Show Images" to view)`}>
+                            <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
                           </div>
                         ) : (
-                          <div className="w-16 h-16 bg-gray-100 rounded border-2 border-dashed border-gray-300 flex items-center justify-center">
-                            <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <div className="w-12 h-12 bg-gray-100 rounded border border-gray-300 flex items-center justify-center">
+                            <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                           </div>
