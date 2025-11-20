@@ -61,31 +61,62 @@ export default function Report() {
   }, [])
 
   const fetchAssets = async () => {
-    const { data, error } = await supabase
-      .from('assets')
-      .select(`
-        *,
-        opname_records (
-          id,
-          asset_id,
-          keterangan_ada,
-          keterangan_tidak_ada,
-          status_bagus,
-          status_rusak,
-          h_perolehan,
-          nilai_buku,
-          image_url,
-          created_at
-        )
-      `)
-      .order('name', { ascending: true })
+    try {
+      let allAssets: AssetWithOpname[] = []
+      let from = 0
+      let to = 999
+      let hasMore = true
 
-    if (error) {
-      console.error('Error fetching assets:', error)
-    } else {
-      setAssets(data || [])
+      // Fetch data in batches of 1000 (Supabase's max limit per query)
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('assets')
+          .select(`
+            *,
+            opname_records (
+              id,
+              asset_id,
+              keterangan_ada,
+              keterangan_tidak_ada,
+              status_bagus,
+              status_rusak,
+              h_perolehan,
+              nilai_buku,
+              image_url,
+              created_at
+            )
+          `)
+          .order('name', { ascending: true })
+          .range(from, to)
+
+        if (error) {
+          console.error('Error fetching assets:', error)
+          break
+        }
+
+        if (data && data.length > 0) {
+          allAssets = [...allAssets, ...data]
+
+          // If we got less than 1000 records, we've reached the end
+          if (data.length < 1000) {
+            hasMore = false
+          } else {
+            // Prepare for next batch
+            from = to + 1
+            to = from + 999
+          }
+        } else {
+          hasMore = false
+        }
+      }
+
+      setAssets(allAssets)
+      console.log(`Fetched ${allAssets.length} total assets`)
+    } catch (error) {
+      console.error('Error in fetchAssets:', error)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const applyFilters = () => {
