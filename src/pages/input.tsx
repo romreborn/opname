@@ -306,10 +306,10 @@ export default function Input() {
                     type="text"
                     value={searchQuery}
                     onChange={handleSearchChange}
-                    placeholder="Ketik minimal 4 karakter untuk mencari asset..."
-                    className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Cari Nama Asset atau Nomor Asset (minimal 4 karakter)..."
+                    className="w-full px-4 py-4 pr-12 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
                   />
-                  <svg className="absolute right-3 top-3 w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="absolute right-4 top-4 w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 </div>
@@ -394,7 +394,16 @@ export default function Input() {
                 {/* Asset Details */}
                 <div className="space-y-4 pt-6 border-t">
                   <h3 className="text-lg font-semibold text-gray-900">Detail Asset</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="lg:col-span-3">
+                      <label className="block text-sm font-medium text-gray-700">Nama Asset</label>
+                      <input
+                        type="text"
+                        value={selectedAsset.name || ''}
+                        readOnly
+                        className="w-full px-4 py-3 border border-gray-300 rounded-md bg-gray-50 text-lg font-medium text-gray-900"
+                      />
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Merk</label>
                       <input
