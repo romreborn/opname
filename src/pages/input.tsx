@@ -41,8 +41,8 @@ export default function Input() {
   }, [])
 
   useEffect(() => {
-    // Filter assets based on search query - only search after 4+ characters
-    if (searchQuery.trim() === '' || searchQuery.length < 4) {
+    // Filter assets based on search query - only show results after 2+ characters
+    if (searchQuery.trim() === '' || searchQuery.length < 2) {
       setFilteredAssets([])
     } else {
       const filtered = assets.filter(asset =>
@@ -50,37 +50,91 @@ export default function Input() {
         asset.no_asset?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         asset.merk?.toLowerCase().includes(searchQuery.toLowerCase())
       )
-      setFilteredAssets(filtered)
+
+      // Sort: non-opnamed assets first, then opnamed assets
+      const sorted = filtered.sort((a, b) => {
+        const aIsOpnamed = submittedAssets.has(a.id)
+        const bIsOpnamed = submittedAssets.has(b.id)
+
+        // If both are opnamed or both are not, sort by name
+        if (aIsOpnamed === bIsOpnamed) {
+          return a.name.localeCompare(b.name)
+        }
+
+        // Non-opnamed assets come first (false < true)
+        return aIsOpnamed ? 1 : -1
+      })
+
+      setFilteredAssets(sorted)
     }
-  }, [searchQuery, assets])
+  }, [searchQuery, assets, submittedAssets])
 
   const fetchAssets = async () => {
-    const { data: assetsData, error: assetsError } = await supabase
-      .from('assets')
-      .select('*')
-      .order('name')
+    try {
+      // Fetch all assets with pagination to bypass 1000 row limit
+      let allAssets: any[] = []
+      let page = 0
+      const pageSize = 1000
+      let hasMore = true
 
-    if (assetsError) {
-      console.error('Error fetching assets:', assetsError)
-      return
+      while (hasMore) {
+        const { data: assetsData, error: assetsError } = await supabase
+          .from('assets')
+          .select('*')
+          .order('name')
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+
+        if (assetsError) {
+          console.error('Error fetching assets:', assetsError)
+          return
+        }
+
+        if (assetsData && assetsData.length > 0) {
+          allAssets = [...allAssets, ...assetsData]
+          hasMore = assetsData.length === pageSize
+          page++
+        } else {
+          hasMore = false
+        }
+      }
+
+      console.log(`Fetched ${allAssets.length} total assets`)
+
+      // Fetch existing opname records to determine which assets are already opnamed
+      let allOpnameRecords: any[] = []
+      page = 0
+      hasMore = true
+
+      while (hasMore) {
+        const { data: opnameData, error: opnameError } = await supabase
+          .from('opname_records')
+          .select('asset_id')
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+
+        if (opnameError) {
+          console.error('Error fetching opname records:', opnameError)
+          hasMore = false
+        } else if (opnameData && opnameData.length > 0) {
+          allOpnameRecords = [...allOpnameRecords, ...opnameData]
+          hasMore = opnameData.length === pageSize
+          page++
+        } else {
+          hasMore = false
+        }
+      }
+
+      const opnamedAssetIds = new Set(
+        allOpnameRecords.map(record => record.asset_id)
+      )
+
+      console.log(`Found ${opnamedAssetIds.size} assets that have been opnamed`)
+
+      setAssets(allAssets)
+      setFilteredAssets([]) // Start with empty since we require 3+ characters
+      setSubmittedAssets(opnamedAssetIds)
+    } catch (error) {
+      console.error('Error in fetchAssets:', error)
     }
-
-    // Fetch existing opname records to determine which assets are already opnamed
-    const { data: opnameData, error: opnameError } = await supabase
-      .from('opname_records')
-      .select('asset_id')
-
-    if (opnameError) {
-      console.error('Error fetching opname records:', opnameError)
-    }
-
-    const opnamedAssetIds = new Set(
-      (opnameData || []).map(record => record.asset_id)
-    )
-
-    setAssets(assetsData || [])
-    setFilteredAssets(assetsData || [])
-    setSubmittedAssets(opnamedAssetIds)
   }
 
   const handleAssetChange = (assetId: string) => {
@@ -306,7 +360,7 @@ export default function Input() {
                     type="text"
                     value={searchQuery}
                     onChange={handleSearchChange}
-                    placeholder="Cari Nama Asset atau Nomor Asset (minimal 4 karakter)..."
+                    placeholder="Cari Nama Asset atau Nomor Asset (minimal 2 karakter)..."
                     className="w-full px-4 py-4 pr-12 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
                   />
                   <svg className="absolute right-4 top-4 w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -332,15 +386,35 @@ export default function Input() {
                 </button>
               </div>
 
+              {/* Search Results Counter */}
+              {searchQuery.trim() !== '' && filteredAssets.length > 0 && (
+                <div className="p-2 bg-blue-50 border border-blue-200 rounded-t-lg">
+                  <p className="text-sm text-blue-700">
+                    Ditemukan {filteredAssets.length} asset untuk "{searchQuery}"
+                  </p>
+                </div>
+              )}
+
+              {/* Asset Count Info */}
+              {searchQuery.length === 0 && assets.length > 0 && (
+                <div className="p-2 bg-gray-50 border border-gray-200 rounded-t-lg">
+                  <p className="text-sm text-gray-600">
+                    Total database: {assets.length} asset • Ketik 2 karakter untuk mencari
+                  </p>
+                </div>
+              )}
+
               {/* Filtered Results */}
-              <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg">
+              <div className={`max-h-64 overflow-y-auto border border-gray-200 rounded-lg ${
+                searchQuery.trim() !== '' && filteredAssets.length > 0 ? 'border-t-0 rounded-t-none' : ''
+              }`}>
                 {filteredAssets.length === 0 ? (
                   <div className="p-4 text-center text-gray-500">
-                    {searchQuery.length > 0 && searchQuery.length < 4
-                      ? 'Ketik minimal 4 karakter...'
-                      : searchQuery.length >= 4
-                      ? 'Tidak ada asset yang cocok'
-                      : 'Ketik minimal 4 karakter untuk mencari asset'}
+                    {searchQuery.length === 0
+                      ? 'Ketik minimal 2 karakter untuk mencari asset'
+                      : searchQuery.length < 2
+                      ? `Ketik ${2 - searchQuery.length} karakter lagi untuk pencarian...`
+                      : 'Tidak ada asset yang cocok dengan pencarian Anda'}
                   </div>
                 ) : (
                   filteredAssets.map(asset => (
@@ -366,22 +440,31 @@ export default function Input() {
                             {asset.merk && ` • ${asset.merk}`}
                           </div>
                         </div>
-                        {submittedAssets.has(asset.id) && (
-                          <div className="flex items-center space-x-2 ml-4">
-                            <div className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full flex items-center">
+                        <div className="flex items-center space-x-2 ml-4">
+                          {submittedAssets.has(asset.id) ? (
+                            <>
+                              <div className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full flex items-center">
+                                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                                Input
+                              </div>
+                              <div className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full flex items-center">
+                                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                                </svg>
+                                Foto
+                              </div>
+                            </>
+                          ) : (
+                            <div className="bg-orange-100 text-orange-800 text-xs font-medium px-2 py-1 rounded-full flex items-center">
                               <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
                               </svg>
-                              Input
+                              Belum Diopname
                             </div>
-                            <div className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full flex items-center">
-                              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                              </svg>
-                              Foto
-                            </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))
